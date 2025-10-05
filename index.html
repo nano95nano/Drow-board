@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Realtime Board</title>
+<link rel="stylesheet" href="./styles.css" />
+<!-- ES Modules と defer 相当。モジュールなら基本 head でもOK -->
+<script type="module" src="./app.js"></script>
+<body>
+  <canvas id="cv"></canvas>
+  <div class="ui">
+    <button id="joinBtn"><span id="onlineDot"></span><span id="status">オフライン</span></button>
+    <button data-color="#FF5A5A">赤</button>
+    <button data-color="#FFD166">黄</button>
+    <button data-color="#06D6A0">緑</button>
+    <button data-color="#118AB2">青</button>
+    <button data-color="#9D4EDD">紫</button>
+  </div>
+</body>
+</html>
