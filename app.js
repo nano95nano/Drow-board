@@ -1,5 +1,5 @@
 // app.js
-import './networking.js'; // いまはダミー。存在チェック用に読み込むだけ
+//import './networking.js'; // いまはダミー。存在チェック用に読み込むだけ
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -103,3 +103,4 @@ function drawPath(pts, color, width, alpha) {
 
   ctx.globalAlpha = 1;
 }
+
