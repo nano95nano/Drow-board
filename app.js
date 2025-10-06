@@ -1,5 +1,5 @@
 // 通信は一旦外す：まず描けることだけ確認
-// import { Networking } from './networking.js';
+import { Networking } from './networking.js';
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -64,3 +64,4 @@ function stroke(pts, color, width, alpha){
   ctx.stroke(); ctx.globalAlpha=1;
 }
 requestAnimationFrame(draw);
+
