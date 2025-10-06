@@ -38,7 +38,7 @@ const newId = () => Math.random().toString(36).slice(2);
 
 // ---------------- 入力 ----------------
 cv.addEventListener('pointerdown', e=>{
-  if (!Networking.isConnected()) return; // 未接続なら描かせない
+  if (!Networking.isConnected || !Networking.isConnected()) return; // 未接続なら描かせない
   cv.setPointerCapture(e.pointerId);
   state.drawing.active = true;
   state.drawing.pts = [];
@@ -96,4 +96,81 @@ function endStroke(){
   }
   Networking.sendEnd(state.drawing.strokeId);
 
-  // 自分の完成線として保存（ロ
+  // 自分の完成線として保存（ローカル描画用）
+  state.strokes.push({
+    pts: state.drawing.pts.slice(),
+    color: state.color,
+    width: state.width,
+    start: state.drawing.start,
+  });
+
+  state.drawing.active = false;
+  state.drawing.pts = [];
+  state.drawing.strokeId = null;
+}
+
+// ---------------- 受信（いまは同一端末にループバック） ----------------
+Networking.on = Networking.on || {};
+Networking.on.begin = (meta) => {
+  if (!state.remote.has(meta.strokeId))
+    state.remote.set(meta.strokeId, { ...meta, pts: [] });
+};
+Networking.on.append = (strokeId, batch) => {
+  const s = state.remote.get(strokeId);
+  if (!s) return;
+  // 受信は相対時刻で来る → 絶対時刻に戻して保持
+  for (const p of batch) s.pts.push({ x:p.x, y:p.y, t: s.startMs + p.t });
+};
+Networking.on.end = (strokeId) => {
+  // 必要なら完了フラグ等を立てる
+};
+Networking.on.presence = ({ roomId, count }) => {
+  // 参加人数やroomIdを画面に出したい場合はここでDOM更新
+  // 例）console.log(`room=${roomId}, count=${count}`);
+};
+
+// ---------------- 色ボタン ----------------
+document.querySelectorAll('.btn[data-color]').forEach(b=>{
+  b.addEventListener('click', ()=> { state.color = b.dataset.color; });
+});
+
+// ---------------- 描画ループ ----------------
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const t = now();
+
+  // 進行中の自分の線（プレビュー）
+  if (state.drawing.active && state.drawing.pts.length>1)
+    stroke(state.drawing.pts, state.color, state.width, 1);
+
+  // 受信中の相手の線
+  for (const s of state.remote.values()){
+    if (s.pts.length>1){
+      const alpha = fadeAlpha(t, s.startMs, state.fadingSec*1000);
+      if (alpha>0) stroke(s.pts, s.color, s.width, alpha);
+    }
+  }
+
+  // 完成線（自分）
+  for (let i=state.strokes.length-1;i>=0;i--){
+    const s = state.strokes[i];
+    const a = fadeAlpha(t, s.start, state.fadingSec*1000);
+    if (a<=0){ state.strokes.splice(i,1); continue; }
+    stroke(s.pts, s.color, s.width, a);
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// ---------------- ヘルパ ----------------
+function fadeAlpha(nowMs, startMs, durationMs){
+  return Math.max(0, 1 - ( (nowMs - startMs) / durationMs ));
+}
+function stroke(pts, color, width, alpha){
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.lineWidth=width; ctx.strokeStyle=color; ctx.globalAlpha=alpha;
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke(); ctx.globalAlpha=1;
+}
