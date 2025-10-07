@@ -30,7 +30,15 @@ export const Networking = (() => {
     );
     client.logger.level = Photon.LogLevel.INFO; // 必要なら ERROR に
 
-    client.onStateChange = s => console.log('Photon state:', client.stateToString(s));
+    client.onStateChange = s => {
+  // v4 には stateToString が無いので自前で名前化（なければ数値を出す）
+  const StateNames = Photon.LoadBalancing.LoadBalancingClient.State
+                     ? Object.keys(Photon.LoadBalancing.LoadBalancingClient.State)
+                     : null;
+  const name = StateNames && StateNames[s] ? StateNames[s] : s;
+  console.log('Client: State:', name);
+};
+
     client.onError = (code, msg) => console.error('Photon onError:', code, msg);
     client.onOperationResponse = (errCode, errMsg, opCode, resp) =>
       console.warn('OpResp:', {opCode, errCode, errMsg, resp});
@@ -149,3 +157,4 @@ export const Networking = (() => {
     },
   };
 })();
+
