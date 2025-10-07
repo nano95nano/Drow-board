@@ -1,10 +1,21 @@
-// networking.js (Photon 版)
+// networking.js (堅牢版 / Realtime JS)
 const EV = { BEGIN: 1, APPEND: 2, END: 3 };
+
+// --- SDKを確実に読み込む ---
+function ensurePhotonLoaded() {
+  return new Promise((resolve, reject) => {
+    if (window.Photon) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/photon-realtime/dist/photon-realtime.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Photon SDK load failed'));
+    document.head.appendChild(s);
+  });
+}
 
 export const Networking = (() => {
   const handlers = { begin:()=>{}, append:()=>{}, end:()=>{}, presence:()=>{} };
 
-  // ---- 内部状態 ----
   let client = null;
   let joined = false;
   let currentRoomId = null;
@@ -17,78 +28,43 @@ export const Networking = (() => {
     } catch {}
   }
 
-  function setupClient(appId, appVersion = "1.0") {
-    // WSS + JPリージョンを想定（必要なら変更可）
+  function setupClient(appId, appVersion = '1.0') {
     client = new Photon.LoadBalancing.LoadBalancingClient(
       Photon.ConnectionProtocol.Wss,
       appId,
       appVersion
     );
-
-    // ログ（必要ならコメントアウト）
     client.logger.level = Photon.LogLevel.ERROR;
 
-    // ---- コールバック群 ----
-    client.onStateChange = (state) => {
-      // console.log("state:", state, client.stateToString(state));
-    };
-
-    client.onJoinRoom = () => {
-      joined = true;
-      updatePresence();
-    };
-
+    client.onJoinRoom = () => { joined = true; updatePresence(); };
     client.onActorJoin = () => updatePresence();
     client.onActorLeave = () => updatePresence();
 
-    client.onEvent = (code, content/*, actor*/) => {
+    client.onEvent = (code, content) => {
       switch (code) {
-        case EV.BEGIN:
-          handlers.begin(content);
-          break;
-        case EV.APPEND:
-          handlers.append(content.strokeId, content.batch);
-          break;
-        case EV.END:
-          handlers.end(content.strokeId);
-          break;
+        case EV.BEGIN:  handlers.begin(content); break;
+        case EV.APPEND: handlers.append(content.strokeId, content.batch); break;
+        case EV.END:    handlers.end(content.strokeId); break;
       }
     };
   }
 
-  async function connectToRoom(roomId, appId, region = "jp") {
+  async function connectToRoom(roomId, appId, region = 'jp') {
     return new Promise((resolve) => {
       currentRoomId = roomId;
-
       setupClient(appId);
-
-      // 1) 接続 → 2) ルーム参加
       client.connectToRegionMaster(region);
 
-      // ポーリングで state を見て joinOrCreate
-      const timer = setInterval(() => {
-        // 5 = JoinedLobby, 3 = ConnectedToMaster など（SDKの内部状態）
+      const t1 = setInterval(() => {
         if (client.isConnectedToMaster()) {
-          clearInterval(timer);
-          // 非公開・1対1
-          client.opJoinOrCreateRoom({
-            name: roomId,
-            isVisible: false,
-            maxPlayers: 2,
-          });
-          // join 完了は onJoinRoom で検出
-          const waitJoin = setInterval(() => {
-            if (joined) {
-              clearInterval(waitJoin);
-              resolve(true);
-            }
-            if (!client.isConnected()) {
-              clearInterval(waitJoin);
-              resolve(false);
-            }
+          clearInterval(t1);
+          client.opJoinOrCreateRoom({ name: roomId, isVisible: false, maxPlayers: 2 });
+          const t2 = setInterval(() => {
+            if (joined) { clearInterval(t2); resolve(true); }
+            if (!client.isConnected()) { clearInterval(t2); resolve(false); }
           }, 50);
         } else if (!client.isConnected()) {
-          clearInterval(timer);
+          clearInterval(t1);
           resolve(false);
         }
       }, 50);
@@ -98,9 +74,9 @@ export const Networking = (() => {
   return {
     on: handlers,
 
-    async connect(roomId, userId /* userIdは今は未使用 */) {
-      // ★ ここを自分の AppId に置き換える
-      const APP_ID = "836234e9-3882-4cfa-91f3-576be9382171";
+    async connect(roomId /*, userId */) {
+      const APP_ID = '836234e9-3882-4cfa-91f3-576be9382171'; // ←ここを置換！
+      await ensurePhotonLoaded();
       joined = false;
       return await connectToRoom(roomId, APP_ID);
     },
@@ -114,14 +90,12 @@ export const Networking = (() => {
       client.raiseEvent(EV.BEGIN, meta, {
         receivers: Photon.LoadBalancing.Constants.ReceiverGroup.Others,
       });
-      // 自分の画面にも反映（ローカルエコー）
-      handlers.begin(meta);
+      handlers.begin(meta); // ローカルにも反映
     },
 
     sendAppend(strokeId, batch) {
       if (!this.isConnected()) return;
-      const payload = { strokeId, batch };
-      client.raiseEvent(EV.APPEND, payload, {
+      client.raiseEvent(EV.APPEND, { strokeId, batch }, {
         receivers: Photon.LoadBalancing.Constants.ReceiverGroup.Others,
       });
       handlers.append(strokeId, batch);
@@ -136,4 +110,3 @@ export const Networking = (() => {
     },
   };
 })();
-
