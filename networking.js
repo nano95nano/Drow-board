@@ -56,67 +56,74 @@ export const Networking = (() => {
     };
   }
 
-  // ★ ここが connectToRoom（この関数ブロックが全部です）
-  async function connectToRoom(roomId, appId, region = 'asia') {
-    return new Promise((resolve) => {
-      currentRoomId = roomId;
-      setupClient(appId);
+ // networking.js の connectToRoom をこの実装に置換
+async function connectToRoom(roomId, appId, region = 'asia') {
+  return new Promise((resolve) => {
+    currentRoomId = roomId;
+    setupClient(appId);
 
-      // 1) マスターへ接続
-      console.log('Connecting to region:', region);
-      client.connectToRegionMaster(region);
+    let triedCreate = false;
 
-      // 2) マスター接続完了を待って joinRoom（なければ作成）
-      const t1 = setInterval(() => {
-        const masterOK = client.isConnectedToMaster && client.isConnectedToMaster();
-        if (masterOK) {
-          clearInterval(t1);
+    // 状態遷移ハンドラ（上書き）
+    client.onStateChange = (s) => {
+      const State = Photon.LoadBalancing.LoadBalancingClient.State;
+      const name = State ? Object.keys(State)[s] || s : s;
+      console.log('Client: State:', name);
 
-          // まず join、なければ create → join にフォールバック
-          let triedCreate = false;
+      // Masterへ繋がったら join → 失敗したら create → join
+      if (s === Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster) {
+        console.log('joinRoom:', roomId);
+        client.joinRoom(roomId); // 既存があれば入る
+      }
+    };
 
-          const tryJoin = () => {
-            console.log('joinRoom:', roomId);
-            client.joinRoom(roomId);
-          };
-          const tryCreate = () => {
+    // 参加完了
+    client.onJoinRoom = () => {
+      console.log('Joined room:', roomId);
+      updatePresence();
+      resolve(true);
+    };
+
+    // Join / Create の結果を拾ってフォールバック
+    const OPC = Photon.LoadBalancing.Constants.OperationCode;
+    client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
+      // ログ（任意）
+      console.warn('OpResp:', { opCode, errCode, errMsg, resp });
+
+      if (opCode === OPC.Join) {
+        if (errCode) {
+          // 部屋が無い/入れない → 一度だけ作成を試す
+          if (!triedCreate) {
+            triedCreate = true;
             console.log('createRoom:', roomId);
             client.createRoom(roomId, { maxPlayers: 2, isVisible: false });
-          };
-
-          // 参加完了待ち
-          const t2 = setInterval(() => {
-            if (client.isJoinedToRoom && client.isJoinedToRoom()) {
-              clearInterval(t2);
-              resolve(true);
-            }
-            // 断線検知
-            const lost = !client.isConnectedToMaster || !client.isConnectedToMaster();
-            if (lost) { clearInterval(t2); resolve(false); }
-          }, 80);
-
-          // join してみる
-          tryJoin();
-
-          // join失敗→create→join のフォールバック
-          const orig = client.onOperationResponse;
-          client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
-            orig && orig(errCode, errMsg, opCode, resp);
-            const OPC = Photon.LoadBalancing.Constants.OperationCode;
-            if (opCode === OPC.Join) {
-              if (errCode && !triedCreate) { triedCreate = true; tryCreate(); }
-            } else if (opCode === OPC.CreateGame) {
-              if (!errCode) tryJoin();
-            }
-          };
-        } else {
-          // 接続失敗
-          const lost = !client.isConnectedToMaster || !client.isConnectedToMaster();
-          if (lost) { clearInterval(t1); resolve(false); }
+          } else {
+            resolve(false);
+          }
         }
-      }, 100);
-    });
-  }
+      } else if (opCode === OPC.CreateGame) {
+        // 作成成功 → すぐ join し直す
+        if (!errCode) {
+          console.log('joinRoom (after create):', roomId);
+          client.joinRoom(roomId);
+        } else {
+          resolve(false);
+        }
+      }
+    };
+
+    // 致命的エラー
+    client.onError = (code, msg) => {
+      console.error('Photon onError:', code, msg);
+      resolve(false);
+    };
+
+    // 接続開始
+    console.log('Connecting to region:', region);
+    client.connectToRegionMaster(region);
+  });
+}
+
 
   return {
     on: handlers,
@@ -157,4 +164,5 @@ export const Networking = (() => {
     },
   };
 })();
+
 
