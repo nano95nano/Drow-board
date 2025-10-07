@@ -86,27 +86,39 @@ async function connectToRoom(roomId, appId, region = 'asia') {
     };
 
     const origOp = client.onOperationResponse;
-    client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
-      origOp && origOp(errCode, errMsg, opCode, resp);
-      console.warn('OpResp:', { opCode, errCode, errMsg, resp });
+client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
+  origOp && origOp(errCode, errMsg, opCode, resp);
+  console.warn('OpResp:', { opCode, errCode, errMsg, resp });
 
-      if (opCode === OPC.Join) {
-        if (errCode && !triedCreate) {
-          triedCreate = true;
-          console.log('createRoom:', roomId);
-          client.createRoom(roomId, { maxPlayers: 2, isVisible: false });
-        } else if (errCode) {
-          resolve(false);
-        }
-      } else if (opCode === OPC.CreateGame) {
-        if (!errCode) {
-          console.log('joinRoom (after create):', roomId);
-          client.joinRoom(roomId);
-        } else {
-          resolve(false);
-        }
+  // v4対策：名前でも数値でも両方判定
+  const OPC = Photon.LoadBalancing.Constants.OperationCode || {};
+  const isJoinOp   = (opCode === OPC.Join) || (opCode === OPC.JoinGame) || (opCode === OPC.JoinRoom) || (opCode === 226);
+  const isCreateOp = (opCode === OPC.CreateGame) || (opCode === OPC.CreateRoom) || (opCode === 227);
+
+  if (isJoinOp) {
+    if (errCode) {
+      // 32758 = Game does not exist
+      console.warn('Join failed (errCode:', errCode, ') → create then join');
+      if (!triedCreate) {
+        triedCreate = true;
+        console.log('createRoom:', roomId);
+        client.createRoom(roomId, { maxPlayers: 2, isVisible: false });
+      } else {
+        return resolve(false);
       }
-    };
+    }
+    // join 成功時は onJoinRoom で resolve(true) する
+  } else if (isCreateOp) {
+    if (!errCode) {
+      console.log('joinRoom (after create):', roomId);
+      client.joinRoom(roomId);
+    } else {
+      console.error('Create failed:', errCode, errMsg);
+      return resolve(false);
+    }
+  }
+};
+
 
     client.onError = (code, msg) => {
       console.error('Photon onError:', code, msg);
@@ -160,6 +172,7 @@ async function connectToRoom(roomId, appId, region = 'asia') {
     },
   };
 })();
+
 
 
 
