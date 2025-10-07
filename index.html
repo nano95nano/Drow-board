@@ -14,9 +14,12 @@
     <button class="btn" data-color="#118AB2">青</button>
     <button class="btn" data-color="#9D4EDD">紫</button>
   </div>
-
-  <!-- bodyの最後。?v=2 はキャッシュ避け -->
-  <script type="module" src="./app.js?v=2"></script>
+    <!-- Photon Realtime SDK（グローバルに Photon が生える） -->
+  <script src="https://unpkg.com/photon-realtime/dist/photon-realtime.min.js"></script>
+  
+  <!-- 最後にアプリ本体（キャッシュ避けに ?v=6 など付ける） -->
+  <script type="module" src="./app.js?v=6"></script>
 </body>
 </html>
 styles.css
+
