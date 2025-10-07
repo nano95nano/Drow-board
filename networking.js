@@ -45,7 +45,7 @@ export const Networking = (() => {
     };
   }
 
-  async function connectToRoom(roomId, appId, region = 'jp') {
+  async function connectToRoom(roomId, appId, region = 'asia') {
     return new Promise((resolve) => {
       currentRoomId = roomId;
       setupClient(appId);
@@ -126,3 +126,4 @@ export const Networking = (() => {
     },
   };
 })();
+
