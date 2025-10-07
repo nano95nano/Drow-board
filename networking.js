@@ -1,11 +1,11 @@
-// networking.js (Photon Realtime JS v4.x 対応・堅牢版)
+// networking.js（Photon Realtime JS v4.x 用・完成版）
 const EV = { BEGIN: 1, APPEND: 2, END: 3 };
 
-// --- SDKを確実に読み込む（ローカル同梱前提）---
+// SDKは index.html で先に vendor/photon.min.js を読み込む前提
 function ensurePhotonLoaded() {
   return new Promise((resolve, reject) => {
     if (window.Photon) return resolve();
-    reject(new Error('Photon SDK not found. Did you include vendor/photon.min.js in index.html?'));
+    reject(new Error('Photon SDK not found. Include ./vendor/photon.min.js before app.js'));
   });
 }
 
@@ -26,11 +26,14 @@ export const Networking = (() => {
 
   function setupClient(appId, appVersion = '1.0') {
     client = new Photon.LoadBalancing.LoadBalancingClient(
-      Photon.ConnectionProtocol.Wss,
-      appId,
-      appVersion
+      Photon.ConnectionProtocol.Wss, appId, appVersion
     );
-    client.logger.level = Photon.LogLevel.ERROR;
+    client.logger.level = Photon.LogLevel.INFO; // 必要なら ERROR に
+
+    client.onStateChange = s => console.log('Photon state:', client.stateToString(s));
+    client.onError = (code, msg) => console.error('Photon onError:', code, msg);
+    client.onOperationResponse = (errCode, errMsg, opCode, resp) =>
+      console.warn('OpResp:', {opCode, errCode, errMsg, resp});
 
     client.onJoinRoom = () => { joined = true; updatePresence(); };
     client.onActorJoin = () => updatePresence();
@@ -45,45 +48,65 @@ export const Networking = (() => {
     };
   }
 
+  // ★ ここが connectToRoom（この関数ブロックが全部です）
   async function connectToRoom(roomId, appId, region = 'asia') {
     return new Promise((resolve) => {
       currentRoomId = roomId;
       setupClient(appId);
 
       // 1) マスターへ接続
+      console.log('Connecting to region:', region);
       client.connectToRegionMaster(region);
 
       // 2) マスター接続完了を待って joinRoom（なければ作成）
       const t1 = setInterval(() => {
-        if (client.isConnectedToMaster && client.isConnectedToMaster()) {
+        const masterOK = client.isConnectedToMaster && client.isConnectedToMaster();
+        if (masterOK) {
           clearInterval(t1);
 
-          client.joinRoom(roomId, {
-            createIfNotExists: true,
-            maxPlayers: 2,
-            isVisible: false,
-          });
+          // まず join、なければ create → join にフォールバック
+          let triedCreate = false;
 
-          // 3) 参加完了を待つ
+          const tryJoin = () => {
+            console.log('joinRoom:', roomId);
+            client.joinRoom(roomId);
+          };
+          const tryCreate = () => {
+            console.log('createRoom:', roomId);
+            client.createRoom(roomId, { maxPlayers: 2, isVisible: false });
+          };
+
+          // 参加完了待ち
           const t2 = setInterval(() => {
             if (client.isJoinedToRoom && client.isJoinedToRoom()) {
               clearInterval(t2);
               resolve(true);
             }
             // 断線検知
-            if (!client.isConnectedToMaster || !client.isConnectedToMaster()) {
-              clearInterval(t2);
-              resolve(false);
+            const lost = !client.isConnectedToMaster || !client.isConnectedToMaster();
+            if (lost) { clearInterval(t2); resolve(false); }
+          }, 80);
+
+          // join してみる
+          tryJoin();
+
+          // join失敗→create→join のフォールバック
+          const orig = client.onOperationResponse;
+          client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
+            orig && orig(errCode, errMsg, opCode, resp);
+            const OPC = Photon.LoadBalancing.Constants.OperationCode;
+            if (opCode === OPC.Join) {
+              if (errCode && !triedCreate) { triedCreate = true; tryCreate(); }
+            } else if (opCode === OPC.CreateGame) {
+              if (!errCode) tryJoin();
             }
-          }, 50);
+          };
         } else {
-          // マスター未接続で断線
-          if (!client.isConnectedToMaster || !client.isConnectedToMaster()) {
-            clearInterval(t1);
-            resolve(false);
-          }
+          // 接続失敗
+          const lost = !client.isConnectedToMaster || !client.isConnectedToMaster();
+          if (lost) { clearInterval(t1); resolve(false); }
         }
-      }, 50);
+      }, 100);
     });
   }
 
@@ -91,10 +114,10 @@ export const Networking = (() => {
     on: handlers,
 
     async connect(roomId /*, userId */) {
-      const APP_ID = '836234e9-3882-4cfa-91f3-576be9382171'; // あなたのAppId
+      const APP_ID = '836234e9-3882-4cfa-91f3-576be9382171'; // ←あなたの Realtime AppId
       await ensurePhotonLoaded();
       joined = false;
-      return await connectToRoom(roomId, APP_ID);
+      return await connectToRoom(roomId, APP_ID, 'asia'); // jpがダメな環境があるのでまず asia
     },
 
     isConnected() {
@@ -106,7 +129,7 @@ export const Networking = (() => {
       client.raiseEvent(EV.BEGIN, meta, {
         receivers: Photon.LoadBalancing.Constants.ReceiverGroup.Others,
       });
-      handlers.begin(meta); // ローカルにも反映
+      handlers.begin(meta); // 自分にも反映
     },
 
     sendAppend(strokeId, batch) {
@@ -126,4 +149,3 @@ export const Networking = (() => {
     },
   };
 })();
-
