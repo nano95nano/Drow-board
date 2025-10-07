@@ -1,14 +1,13 @@
-// networking.js (堅牢版 / Realtime JS)
+// networking.js (Photon Realtime JS v4.x 対応・堅牢版)
 const EV = { BEGIN: 1, APPEND: 2, END: 3 };
 
-// --- SDKを確実に読み込む（ローカル同梱版）---
+// --- SDKを確実に読み込む（ローカル同梱前提）---
 function ensurePhotonLoaded() {
   return new Promise((resolve, reject) => {
-    if (window.Photon) return resolve(); // すでに読み込み済みなら即OK
+    if (window.Photon) return resolve();
     reject(new Error('Photon SDK not found. Did you include vendor/photon.min.js in index.html?'));
   });
 }
-
 
 export const Networking = (() => {
   const handlers = { begin:()=>{}, append:()=>{}, end:()=>{}, presence:()=>{} };
@@ -50,19 +49,39 @@ export const Networking = (() => {
     return new Promise((resolve) => {
       currentRoomId = roomId;
       setupClient(appId);
+
+      // 1) マスターへ接続
       client.connectToRegionMaster(region);
 
+      // 2) マスター接続完了を待って joinRoom（なければ作成）
       const t1 = setInterval(() => {
-        if (client.isConnectedToMaster()) {
+        if (client.isConnectedToMaster && client.isConnectedToMaster()) {
           clearInterval(t1);
-          client.opJoinOrCreateRoom({ name: roomId, isVisible: false, maxPlayers: 2 });
+
+          client.joinRoom(roomId, {
+            createIfNotExists: true,
+            maxPlayers: 2,
+            isVisible: false,
+          });
+
+          // 3) 参加完了を待つ
           const t2 = setInterval(() => {
-            if (joined) { clearInterval(t2); resolve(true); }
-            if (!client.isConnected()) { clearInterval(t2); resolve(false); }
+            if (client.isJoinedToRoom && client.isJoinedToRoom()) {
+              clearInterval(t2);
+              resolve(true);
+            }
+            // 断線検知
+            if (!client.isConnectedToMaster || !client.isConnectedToMaster()) {
+              clearInterval(t2);
+              resolve(false);
+            }
           }, 50);
-        } else if (!client.isConnected()) {
-          clearInterval(t1);
-          resolve(false);
+        } else {
+          // マスター未接続で断線
+          if (!client.isConnectedToMaster || !client.isConnectedToMaster()) {
+            clearInterval(t1);
+            resolve(false);
+          }
         }
       }, 50);
     });
@@ -72,7 +91,7 @@ export const Networking = (() => {
     on: handlers,
 
     async connect(roomId /*, userId */) {
-      const APP_ID = '836234e9-3882-4cfa-91f3-576be9382171'; // ←ここを置換！
+      const APP_ID = '836234e9-3882-4cfa-91f3-576be9382171'; // あなたのAppId
       await ensurePhotonLoaded();
       joined = false;
       return await connectToRoom(roomId, APP_ID);
@@ -107,4 +126,3 @@ export const Networking = (() => {
     },
   };
 })();
-
