@@ -100,7 +100,7 @@ export const Networking = (() => {
 
     async connect(roomId, userId /* userIdは今は未使用 */) {
       // ★ ここを自分の AppId に置き換える
-      const APP_ID = "YOUR_APP_ID";
+      const APP_ID = "836234e9-3882-4cfa-91f3-576be9382171";
       joined = false;
       return await connectToRoom(roomId, APP_ID);
     },
@@ -136,3 +136,4 @@ export const Networking = (() => {
     },
   };
 })();
+
