@@ -1,9 +1,25 @@
 <!doctype html>
 <html lang="ja">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Drow-board</title>
-<link rel="stylesheet" href="./styles.css?v=2" />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Realtime Drawing Board</title>
+
+  <!-- OGP -->
+  <meta property="og:title" content="Realtime Drawing Board" />
+  <meta property="og:site_name" content="Realtime Drawing Board" />
+  <meta property="og:description" content="お絵描き共有アプリ" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://nano95nano.github.io/Drow-board.github.io/" />
+  <meta property="og:image" content="https://nano95nano.github.io/Drow-board.github.io/ogp.png" />
+  <!-- （任意）サイズ明示： -->
+  <!-- <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"> -->
+
+  <!-- Favicon（任意）-->
+  <link rel="icon" href="./favicon.png" type="image/png">
+
+  <link rel="stylesheet" href="./styles.css?v=2" />
+</head>
 <body>
   <canvas id="cv"></canvas>
 
@@ -15,16 +31,10 @@
     <button class="btn" data-color="#118AB2">青</button>
     <button class="btn" data-color="#9D4EDD">紫</button>
   </div>
-    <!-- Photon Realtime SDK（グローバルに Photon が生える） -->
+
+  <!-- Photon Realtime SDK -->
   <script src="./vendor/photon.min.js?v=2"></script>
-  
-  <!-- 最後にアプリ本体（キャッシュ避けに ?v=6 など付ける） -->
+  <!-- アプリ本体（キャッシュ避けに ?v= を都度更新） -->
   <script type="module" src="./app.js?v=10"></script>
 </body>
 </html>
-styles.css
-
-
-
-
-
