@@ -1,17 +1,14 @@
 // networking.js (堅牢版 / Realtime JS)
 const EV = { BEGIN: 1, APPEND: 2, END: 3 };
 
-// --- SDKを確実に読み込む ---
+// --- SDKを確実に読み込む（ローカル同梱版）---
 function ensurePhotonLoaded() {
   return new Promise((resolve, reject) => {
-    if (window.Photon) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/photon-realtime/dist/photon-realtime.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Photon SDK load failed'));
-    document.head.appendChild(s);
+    if (window.Photon) return resolve(); // すでに読み込み済みなら即OK
+    reject(new Error('Photon SDK not found. Did you include vendor/photon.min.js in index.html?'));
   });
 }
+
 
 export const Networking = (() => {
   const handlers = { begin:()=>{}, append:()=>{}, end:()=>{}, presence:()=>{} };
@@ -110,3 +107,4 @@ export const Networking = (() => {
     },
   };
 })();
+
