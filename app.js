@@ -33,6 +33,7 @@ const newId = () => Math.random().toString(36).slice(2);
     localStorage.setItem('roomId', roomId);
   }
   const ok = await Networking.connect(roomId);
+  console.log('connect result:', ok); // ←追加（trueなら接続成功）
   if (!ok) alert('接続できませんでした');
 })();
 
@@ -174,3 +175,4 @@ function stroke(pts, color, width, alpha){
   for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke(); ctx.globalAlpha=1;
 }
+
