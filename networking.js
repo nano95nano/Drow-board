@@ -64,38 +64,27 @@ async function connectToRoom(roomId, appId, region = 'asia') {
     setupClient(appId);
 
     let triedCreate = false;
-
-    // v4用の定数を取得（無ければ空オブジェクト）
-    const LBC   = Photon.LoadBalancing.LoadBalancingClient;
+    const LBC = Photon.LoadBalancing.LoadBalancingClient;
     const State = (LBC && LBC.State) || {};
-    const OPC   = Photon.LoadBalancing.Constants.OperationCode;
+    const OPC = Photon.LoadBalancing.Constants.OperationCode;
 
-    // 状態ログ（Stateが無い環境でも動くようガード）
     client.onStateChange = (s) => {
       const name = State ? (Object.keys(State)[s] || s) : s;
       console.log('Client: State:', name);
 
-      // Master 接続後にロビーへ
+      // Master接続完了で直接 joinRoom() を試す
       if (State.ConnectedToMaster !== undefined ? s === State.ConnectedToMaster : name === 'ConnectedToMaster') {
-        console.log('Connected to Master → joinLobby()');
-        client.joinLobby();
+        console.log('Connected to Master → try joinRoom()');
+        client.joinRoom(roomId);
       }
     };
 
-    // ロビー参加後に部屋へ join（無ければ後で create にフォールバック）
-    client.onJoinLobby = () => {
-      console.log('Joined Lobby → joinRoom:', roomId);
-      client.joinRoom(roomId);
-    };
-
-    // 部屋参加完了
     client.onJoinRoom = () => {
       console.log('Joined room:', roomId);
       updatePresence();
       resolve(true);
     };
 
-    // Join/Create の結果でフォールバック
     const origOp = client.onOperationResponse;
     client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
       origOp && origOp(errCode, errMsg, opCode, resp);
@@ -128,6 +117,7 @@ async function connectToRoom(roomId, appId, region = 'asia') {
     client.connectToRegionMaster(region);
   });
 }
+
 
 
 
@@ -170,6 +160,7 @@ async function connectToRoom(roomId, appId, region = 'asia') {
     },
   };
 })();
+
 
 
 
