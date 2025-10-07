@@ -1,4 +1,4 @@
-import { Networking } from './networking.js?v=6';
+import { Networking } from './networking.js?v=7';
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -175,5 +175,6 @@ function stroke(pts, color, width, alpha){
   for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke(); ctx.globalAlpha=1;
 }
+
 
 
