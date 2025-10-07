@@ -113,9 +113,17 @@ function endStroke(){
 // ---------------- 受信（いまは同一端末にループバック） ----------------
 Networking.on = Networking.on || {};
 Networking.on.begin = (meta) => {
-  if (!state.remote.has(meta.strokeId))
-    state.remote.set(meta.strokeId, { ...meta, pts: [] });
+  if (!state.remote.has(meta.strokeId)) {
+    // iPadなど、送信端末の「開始時間」を受信端末のローカル時間に補正
+    const delta = now() - meta.startMs; 
+    state.remote.set(meta.strokeId, { 
+      ...meta, 
+      pts: [], 
+      startAdj: meta.startMs + delta // 補正済みの開始時間を記録
+    });
+  }
 };
+
 Networking.on.append = (strokeId, batch) => {
   const s = state.remote.get(strokeId);
   if (!s) return;
@@ -147,7 +155,8 @@ function draw(){
   // 受信中の相手の線
   for (const s of state.remote.values()){
     if (s.pts.length>1){
-      const alpha = fadeAlpha(t, s.startMs, state.fadingSec*1000);
+      const base = s.startAdj ?? s.startMs;
+      const alpha = fadeAlpha(t, base, state.fadingSec*1000);
       if (alpha>0){
         stroke(s.pts, s.color, s.width, alpha);
       }
@@ -177,6 +186,7 @@ function stroke(pts, color, width, alpha){
   for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke(); ctx.globalAlpha=1;
 }
+
 
 
 
