@@ -149,7 +149,6 @@ function draw(){
     if (s.pts.length>1){
       const alpha = fadeAlpha(t, s.startMs, state.fadingSec*1000);
       if (alpha>0){
-        ctx.globalAlpha = 1.0; // ←★ ここで不透明に固定
         stroke(s.pts, s.color, s.width, alpha);
       }
     }
@@ -178,6 +177,7 @@ function stroke(pts, color, width, alpha){
   for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke(); ctx.globalAlpha=1;
 }
+
 
 
 
