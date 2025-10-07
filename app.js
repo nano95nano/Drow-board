@@ -188,8 +188,16 @@ function stroke(pts, color, width, alpha){
   ctx.stroke(); ctx.globalAlpha=1;
 }
 
+//----------------再接続----------------
 
-
+document.getElementById('joinBtn').addEventListener('click', async () => {
+  const current = localStorage.getItem('roomId') || '';
+  const roomId = prompt('ルームIDを入力', current);
+  if (!roomId) return;
+  localStorage.setItem('roomId', roomId);
+  const ok = await Networking.connect(roomId);
+  console.log('connect result:', ok);
+});
 
 
 
