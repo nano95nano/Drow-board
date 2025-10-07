@@ -114,15 +114,16 @@ function endStroke(){
 Networking.on = Networking.on || {};
 Networking.on.begin = (meta) => {
   if (!state.remote.has(meta.strokeId)) {
-    // iPadなど、送信端末の「開始時間」を受信端末のローカル時間に補正
-    const delta = now() - meta.startMs; 
+    // 受信した瞬間を開始時間として扱う（端末差を無視）
+    const adjustedStart = now(); 
     state.remote.set(meta.strokeId, { 
       ...meta, 
       pts: [], 
-      startAdj: meta.startMs + delta // 補正済みの開始時間を記録
+      startAdj: adjustedStart 
     });
   }
 };
+
 
 Networking.on.append = (strokeId, batch) => {
   const s = state.remote.get(strokeId);
@@ -186,6 +187,7 @@ function stroke(pts, color, width, alpha){
   for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke(); ctx.globalAlpha=1;
 }
+
 
 
 
