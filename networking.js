@@ -57,6 +57,7 @@ export const Networking = (() => {
   }
 
  // networking.js の connectToRoom をこの実装に置換
+// ★ここを丸ごと置換
 async function connectToRoom(roomId, appId, region = 'asia') {
   return new Promise((resolve) => {
     currentRoomId = roomId;
@@ -64,50 +65,51 @@ async function connectToRoom(roomId, appId, region = 'asia') {
 
     let triedCreate = false;
 
-    // 状態遷移ハンドラ（上書き）
+    // v4用の定数を取得（無ければ空オブジェクト）
+    const LBC   = Photon.LoadBalancing.LoadBalancingClient;
+    const State = (LBC && LBC.State) || {};
+    const OPC   = Photon.LoadBalancing.Constants.OperationCode;
+
+    // 状態ログ（Stateが無い環境でも動くようガード）
     client.onStateChange = (s) => {
-  const name = State ? Object.keys(State)[s] || s : s;
-  console.log('Client: State:', name);
+      const name = State ? (Object.keys(State)[s] || s) : s;
+      console.log('Client: State:', name);
 
-  if (s === State.ConnectedToMaster) {
-    console.log('Connected to Master → Joining Lobby');
-    client.joinLobby(); // ←まずロビーに入る
-  }
-};
+      // Master 接続後にロビーへ
+      if (State.ConnectedToMaster !== undefined ? s === State.ConnectedToMaster : name === 'ConnectedToMaster') {
+        console.log('Connected to Master → joinLobby()');
+        client.joinLobby();
+      }
+    };
 
-// ★ ロビー参加後に部屋へ入る
-client.onJoinLobby = () => {
-  console.log('Joined Lobby → joining room:', roomId);
-  client.joinRoom(roomId); // 既存があれば入る、無ければCreateにフォールバック
-};
+    // ロビー参加後に部屋へ join（無ければ後で create にフォールバック）
+    client.onJoinLobby = () => {
+      console.log('Joined Lobby → joinRoom:', roomId);
+      client.joinRoom(roomId);
+    };
 
-
-    // 参加完了
+    // 部屋参加完了
     client.onJoinRoom = () => {
       console.log('Joined room:', roomId);
       updatePresence();
       resolve(true);
     };
 
-    // Join / Create の結果を拾ってフォールバック
-    const OPC = Photon.LoadBalancing.Constants.OperationCode;
+    // Join/Create の結果でフォールバック
+    const origOp = client.onOperationResponse;
     client.onOperationResponse = (errCode, errMsg, opCode, resp) => {
-      // ログ（任意）
+      origOp && origOp(errCode, errMsg, opCode, resp);
       console.warn('OpResp:', { opCode, errCode, errMsg, resp });
 
       if (opCode === OPC.Join) {
-        if (errCode) {
-          // 部屋が無い/入れない → 一度だけ作成を試す
-          if (!triedCreate) {
-            triedCreate = true;
-            console.log('createRoom:', roomId);
-            client.createRoom(roomId, { maxPlayers: 2, isVisible: false });
-          } else {
-            resolve(false);
-          }
+        if (errCode && !triedCreate) {
+          triedCreate = true;
+          console.log('createRoom:', roomId);
+          client.createRoom(roomId, { maxPlayers: 2, isVisible: false });
+        } else if (errCode) {
+          resolve(false);
         }
       } else if (opCode === OPC.CreateGame) {
-        // 作成成功 → すぐ join し直す
         if (!errCode) {
           console.log('joinRoom (after create):', roomId);
           client.joinRoom(roomId);
@@ -117,17 +119,16 @@ client.onJoinLobby = () => {
       }
     };
 
-    // 致命的エラー
     client.onError = (code, msg) => {
       console.error('Photon onError:', code, msg);
       resolve(false);
     };
 
-    // 接続開始
     console.log('Connecting to region:', region);
     client.connectToRegionMaster(region);
   });
 }
+
 
 
   return {
@@ -169,6 +170,7 @@ client.onJoinLobby = () => {
     },
   };
 })();
+
 
 
 
