@@ -66,16 +66,21 @@ async function connectToRoom(roomId, appId, region = 'asia') {
 
     // 状態遷移ハンドラ（上書き）
     client.onStateChange = (s) => {
-      const State = Photon.LoadBalancing.LoadBalancingClient.State;
-      const name = State ? Object.keys(State)[s] || s : s;
-      console.log('Client: State:', name);
+  const name = State ? Object.keys(State)[s] || s : s;
+  console.log('Client: State:', name);
 
-      // Masterへ繋がったら join → 失敗したら create → join
-      if (s === Photon.LoadBalancing.LoadBalancingClient.State.ConnectedToMaster) {
-        console.log('joinRoom:', roomId);
-        client.joinRoom(roomId); // 既存があれば入る
-      }
-    };
+  if (s === State.ConnectedToMaster) {
+    console.log('Connected to Master → Joining Lobby');
+    client.joinLobby(); // ←まずロビーに入る
+  }
+};
+
+// ★ ロビー参加後に部屋へ入る
+client.onJoinLobby = () => {
+  console.log('Joined Lobby → joining room:', roomId);
+  client.joinRoom(roomId); // 既存があれば入る、無ければCreateにフォールバック
+};
+
 
     // 参加完了
     client.onJoinRoom = () => {
@@ -164,5 +169,6 @@ async function connectToRoom(roomId, appId, region = 'asia') {
     },
   };
 })();
+
 
 
